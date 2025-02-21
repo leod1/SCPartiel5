@@ -1,54 +1,97 @@
-class Package {
-    weight: number;
-    distance: number;
+enum PricingStrategyType {
+    REGULAR = "REGULAR",
+    VIP = "VIP",
+    BUSINESS = "BUSINESS"
+}
 
-    constructor(weight: number, distance: number) {
-        this.weight = weight;
-        this.distance = distance;
+interface PricingStrategy {
+    applyDiscount(price: number): number;
+}
+
+class RegularPricing implements PricingStrategy {
+    applyDiscount(price: number): number {
+        return price;
+    }
+}
+
+class VipPricing implements PricingStrategy {
+    applyDiscount(price: number): number {
+        return price * 0.8;
+    }
+}
+
+class BusinessPricing implements PricingStrategy {
+    applyDiscount(price: number): number {
+        return price * 0.9;
+    }
+}
+
+class PricingStrategyFactory {
+    static getStrategy(strategyType: PricingStrategyType): PricingStrategy {
+        switch (strategyType) {
+            case PricingStrategyType.VIP:
+                return new VipPricing();
+            case PricingStrategyType.BUSINESS:
+                return new BusinessPricing();
+            case PricingStrategyType.REGULAR:
+            default:
+                return new RegularPricing();
+        }
+    }
+}
+
+class Package {
+    constructor(public weight: number, public distance: number) {
+        if (weight < 0) {
+            throw new Error("Invalid weight!");
+        }
+    }
+
+    calculateBasePrice(): number {
+        let base = this.distance * 0.1;
+
+        if (this.weight > 10) {
+            base += 5;
+        } else if (this.weight > 5) {
+            base += 3;
+        }
+
+        return base;
     }
 }
 
 class DeliveryService {
-    calculateDeliveryPrice(packages: Package[], customerType: string, urgent: boolean): number {
-        let total = 0;
-        for (const pkg of packages) {
-            if (pkg.weight < 0) {
-                console.log("Invalid weight!");
-                return -1;
-            }
+    constructor(private pricingStrategy: PricingStrategy) {}
 
-            let base = pkg.distance * 0.1;
-            if (pkg.weight > 10) {
-                base += 5;
-            } else if (pkg.weight > 5) {
-                base += 3;
-            }
-
+    calculateDeliveryPrice(packages: Package[], urgent: boolean): number {
+        let total = packages.reduce((sum, pkg) => {
+            let price = pkg.calculateBasePrice();
             if (urgent) {
-                base *= 1.5;
+                price *= 1.5;
             }
-
-            if (customerType === "VIP") {
-                base *= 0.8;
-            } else if (customerType === "Business") {
-                base *= 0.9;
-            }
-
-            total += base;
-        }
+            return sum + price;
+        }, 0);
 
         if (packages.length > 3) {
             total *= 0.95;
         }
 
-        return total;
+        return this.pricingStrategy.applyDiscount(total);
     }
+}
 
-    printInvoice(packages: Package[], customerType: string): void {
-        const price = this.calculateDeliveryPrice(packages, customerType, false);
+class InvoiceService {
+    printInvoice(deliveryService: DeliveryService, packages: Package[]): void {
+        const price = deliveryService.calculateDeliveryPrice(packages, false);
         console.log(`Total: ${price}`);
         if (price > 100) {
             console.log("Apply special discount next time!");
         }
     }
 }
+const packages = [new Package(8, 100), new Package(15, 50), new Package(3, 200)];
+const pricingStrategy = PricingStrategyFactory.getStrategy(PricingStrategyType.VIP);
+const deliveryService = new DeliveryService(pricingStrategy);
+const invoiceService = new InvoiceService();
+
+invoiceService.printInvoice(deliveryService, packages);
